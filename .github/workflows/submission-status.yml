@@ -1,0 +1,35 @@
+name: 제출 현황 갱신
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "*주차/제출/**"
+      - "_운영/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: submission-status
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python _운영/제출현황.py
+      - name: 바뀐 게 있으면 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898+github-actions[bot]@users.noreply.github.com"
+          git add 제출현황.md
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: 제출 현황 자동 갱신"
+          git pull --rebase
+          git push
