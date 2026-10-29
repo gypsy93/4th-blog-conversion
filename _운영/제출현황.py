@@ -13,15 +13,28 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "제출현황.md"
 
-# 주차별 제출 요건. 글 = 글1~글N 칸에 링크가 있어야 하는 수, 필수 = 비어 있으면 안 되는 칸.
-# 요건이 없는 주차는 한 칸이라도 채우면 제출로 본다.
+# 주차별 제출 요건. 글 = 글1~글N 칸에 링크가 있어야 하는 수, 필수 = 비어 있으면 안 되는 칸,
+# 체크 = [x] 여야 하는 체크박스(문구 앞부분). 요건이 없는 주차는 한 칸이라도 채우면 제출로 본다.
 RULES = {
     1: {"글": 3, "필수": ["AI 없이 직접 쓴 글 (번호)"]},
-    2: {"글": 3, "필수": ["트랙 (수익 / 검색 1위)", "제휴 링크 넣은 글 (번호)"]},
+    2: {
+        "글": 3,
+        "필수": [
+            "방향 (A 어필리에이트 수익 / B 블로그 전환)",
+            "어떤 전환을 만들고 싶나요",
+            "글1 어떤 글",
+            "글2 어떤 글",
+            "글3 어떤 글",
+            "세시간전 링크 넣은 글 (번호)",
+            "왜 이 상품을 연결했나요",
+            "어떤 포인트에서 링크를 넣었나요",
+        ],
+        "체크": ["그 글 맨 위에 수수료 고지"],
+    },
 }
 
 FIELD = re.compile(r"^\s*-\s*([^:\[\]]+?)\s*:\s*(.*?)\s*$")
-CHECK = re.compile(r"^\s*-\s*\[([ xX])\]")
+CHECK = re.compile(r"^\s*-\s*\[([ xX])\]\s*(.*)$")
 URL = re.compile(r"https?://\S+")
 
 
@@ -40,12 +53,11 @@ def weeks():
 
 
 def parse(path):
-    fields, checks = {}, [0, 0]
+    fields, checks = {}, {}
     for line in path.read_text(encoding="utf-8").splitlines():
         c = CHECK.match(line)
         if c:
-            checks[1] += 1
-            checks[0] += c.group(1) in "xX"
+            checks[c.group(2)] = c.group(1) in "xX"
             continue
         m = FIELD.match(line)
         if m:
@@ -57,7 +69,8 @@ def status(week, path):
     """(아이콘, 설명, 글 링크 목록)"""
     if not path.exists():
         return "⬜", "파일 없음", []
-    fields, (done, total) = parse(path)
+    fields, checks = parse(path)
+    done, total = sum(checks.values()), len(checks)
     rule = RULES.get(week, {"글": 0, "필수": []})
     posts = []
     for i in range(1, rule["글"] + 1):
@@ -68,6 +81,10 @@ def status(week, path):
     if not filled:
         return "⬜", "미제출", []
     missing = [k for k in rule["필수"] if not fields.get(k)]
+    missing += [
+        k for k in rule.get("체크", [])
+        if not any(done_ and label.startswith(k) for label, done_ in checks.items())
+    ]
     ok = len(posts) >= rule["글"] and not missing
     parts = []
     if rule["글"]:
